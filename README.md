@@ -17,9 +17,7 @@ In the meantime, you can install the extension manually from source (see below).
 
 ---
 
-### Latest stable version (v1.2.1) includes the following features:
-
-#### 🔒 New in v1.2.1
+### Latest stable version (v0.0.1) includes the following features:
 
 - Direct **GitLab** repository integration
 - Support for Private GitLab repositories
