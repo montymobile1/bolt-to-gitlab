@@ -220,103 +220,86 @@
     };
 
     if (parsedProjectId) {
-      // Check if the parsedProjectId is different from the repoName
-      if (parsedProjectId == repoName) {
+      try {
         // Fetch project information from GitLab using repoName
         const url = `https://gitlab.com/api/v4/projects?membership=true&min_access_level=30&per_page=100&order_by=updated_at&search=${repoName}`;
-        parsedProjectId = repoName;
-        try {
-          const response = await fetch(url, {
-            method: 'GET', // Use the correct method syntax
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'PRIVATE-TOKEN': `${gitlabToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch project details from GitLab');
+        }
+
+        const projects = await response.json();
+        let repoId: number | undefined;
+
+        if (projects.length > 0) {
+          const matchedProject = projects.find((p: any) => p.name === repoName);
+          if (matchedProject) {
+            repoId = matchedProject.id;
+          }
+        }
+
+
+        if (!repoId) {
+
+
+          console.log('No project found, creating a new project...');
+          const createProjectUrl = 'https://gitlab.com/api/v4/projects';
+          const createProjectResponse = await fetch(createProjectUrl, {
+            method: 'POST',
             headers: {
               'PRIVATE-TOKEN': `${gitlabToken}`,
               'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+              name: repoName,
+              visibility: 'private',
+            }),
           });
 
-          if (!response.ok) {
-            throw new Error('Failed to fetch project details from GitLab');
-          }
-          const project = await response.json();
-          let repoId: number | undefined;
-
-          if (project.length > 0) {
-            repoId = project[0].id;
-
-          } else {
-            console.log('No project found, creating a new project...');
-            // If no project found, create a new project
-            const createProjectUrl = 'https://gitlab.com/api/v4/projects';
-            const createProjectResponse = await fetch(createProjectUrl, {
-              method: 'POST',
-              headers: {
-                'PRIVATE-TOKEN': `${gitlabToken}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                name: repoName, // Use repoName for the new project name
-                visibility: 'private', // Set visibility as needed
-              }),
-            });
-
-            if (!createProjectResponse.ok) {
-              throw new Error('Failed to create new project on GitLab');
-            }
-
-            const createdProject = await createProjectResponse.json();
-            repoId = createdProject.id; // Get the repoId of the newly created project
-
+          if (!createProjectResponse.ok) {
+            throw new Error('Failed to create new project on GitLab');
           }
 
-          if (repoId) {
-            // Update the projectSettings with the fetched or created repoId
-            projectSettings[parsedProjectId] = {
-              repoName,
-              projectId: repoId, // Update with the repoId from GitLab (fetched or created)
-              repoId, // Update with the repoId from GitLab (fetched or created)
-              branch,
-            };
-
-            // Set the updated project settings in settings
-            settings.projectSettings = projectSettings;
+          const createdProject = await createProjectResponse.json();
+          repoId = createdProject.id;
+        }
 
 
-          } else {
-            console.error('No valid repoId found');
-          }
-
-        } catch (error) {
-          console.error('Error fetching project details from GitLab:', error);
-          status = 'Error fetching project details';
-          hasStatus = true;
+        if (!repoId) {
+          console.error('No valid repoId found');
           return;
         }
-      } else {
-          // If parsedProjectId is the same as repoName, directly update projectSettings
-          const url = `https://gitlab.com/api/v4/projects?membership=true&min_access_level=30&per_page=100&order_by=updated_at&search=${repoName}`;
+
+         projectSettings[parsedProjectId] = {
+
+          repoName,
+
+          projectId: repoId,
+
+          repoId,
+
+          branch,
+
+        };
 
 
-          const response = await fetch(url, {
-            method: 'GET', // Use the correct method syntax
-            headers: {
-              'PRIVATE-TOKEN': `${gitlabToken}`,
-              'Content-Type': 'application/json',
-            },
-          });
-
-         if (!response.ok) {
-            throw new Error('Failed to fetch project details from GitLab');
-          }
-
-         const project = await response.json();
-         let projectId: number | undefined;
-
-         if (project.length > 0) {
-            projectId = project[0].id;
-            }
-        projectSettings[parsedProjectId] = { repoName, branch ,projectId: projectId };
+        // Update settings with the new project settings
         settings.projectSettings = projectSettings;
-      }
+
+      } catch (error) {
+        console.error('Error handling GitLab project:', error);
+        status = 'Error handling GitLab project';
+        hasStatus = true;
+
+          }
     }
 
     await chrome.storage.sync.set(settings);
